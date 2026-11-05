@@ -180,7 +180,9 @@ The app runs as a single service: the API serves the built frontend from
 2. Render dashboard → New → Blueprint → pick the repo. `render.yaml`
    creates the web service + a free PostgreSQL database; the service
    runs `migrate` + `seed` on startup (both idempotent), and serves
-   `/api/health`.
+   `/api/health`. Build tools (vite, the Svelte plugin) live in the
+   frontend's `dependencies`, not `devDependencies`, because Render's
+   production install skips dev-only packages.
 3. Set `ADMIN_USERNAME` / `ADMIN_PASSWORD` in Render (the blueprint
    generates a password). Local dev default is admin / soup-admin — do
    not use it on a live site.
