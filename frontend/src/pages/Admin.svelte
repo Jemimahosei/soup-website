@@ -121,9 +121,14 @@
     notice = "";
     error = "";
     const body = { ...drafts[table] };
-    for (const key of ["spots_total", "spots_taken"]) {
-      if (body[key] === "") body[key] = null;
-      else if (body[key] != null) body[key] = Number(body[key]);
+    // Blank spot counts: total spots is optional (null), but spots taken
+    // is NOT NULL in the database — sending null for it made every
+    // create with the field left blank fail with a 500. Default it to 0.
+    if (body.spots_total === "") body.spots_total = null;
+    else if (body.spots_total != null) body.spots_total = Number(body.spots_total);
+    if (table === "events") {
+      if (body.spots_taken === "" || body.spots_taken == null) body.spots_taken = 0;
+      else body.spots_taken = Number(body.spots_taken);
     }
     try {
       if (editing[table]) {
