@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { api, adminApi, adminLogin, adminLogout, getToken } from "../lib/api.js";
 
-  let username = "";
+  let username = "admin";
   let password = "";
   let loggedIn = !!getToken();
   let loginError = "";
