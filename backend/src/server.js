@@ -9,16 +9,22 @@ app.use(express.json());
 
 const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
 
-// Demo-only admin sessions: token -> expiry timestamp. Not production auth.
-const sessions = new Map();
-
-function requireAdmin(req, res, next) {
+// Admin sessions are stored in the database (see migrate.js), so a
+// redeploy or restart does not invalidate a signed-in session.
+async function requireAdmin(req, res, next) {
   const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  const expiry = sessions.get(token);
-  if (!token || !expiry || expiry < Date.now()) {
-    return res.status(401).json({ error: "Admin login required" });
+  if (token) {
+    try {
+      const { rows } = await pool.query(
+        "SELECT expires_at FROM sessions WHERE token = $1",
+        [token]
+      );
+      if (rows.length && rows[0].expires_at > Date.now()) return next();
+    } catch (e) {
+      console.error(e);
+    }
   }
-  next();
+  return res.status(401).json({ error: "Admin login required" });
 }
 
 const asyncHandler = (fn) => (req, res, next) =>
@@ -106,8 +112,25 @@ app.post(
       return res.status(401).json({ error: "Invalid credentials" });
     }
     const token = crypto.randomBytes(32).toString("hex");
-    sessions.set(token, Date.now() + 24 * 60 * 60 * 1000);
+    const expiry = Date.now() + 24 * 60 * 60 * 1000;
+    await pool.query("DELETE FROM sessions WHERE expires_at < $1", [Date.now()]);
+    await pool.query(
+      "INSERT INTO sessions (token, expires_at) VALUES ($1, $2)",
+      [token, expiry]
+    );
     res.json({ token, username });
+  })
+);
+
+// ---- Admin: logout (invalidate the session server-side) ----
+app.post(
+  "/api/admin/logout",
+  asyncHandler(async (req, res) => {
+    const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+    if (token) {
+      await pool.query("DELETE FROM sessions WHERE token = $1", [token]);
+    }
+    res.json({ ok: true });
   })
 );
 

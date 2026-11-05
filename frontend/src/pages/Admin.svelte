@@ -96,8 +96,8 @@
     }
   }
 
-  function doLogout() {
-    adminLogout();
+  async function doLogout() {
+    await adminLogout();
     loggedIn = false;
   }
 

@@ -45,6 +45,13 @@ async function main() {
       password_hash TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    -- Admin sessions live in the database (not server memory) so a
+    -- redeploy/restart does not log everyone out mid-session.
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      expires_at BIGINT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
 
   // Photos: resources gained an image_url column with the retrofit

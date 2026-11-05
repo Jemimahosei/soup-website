@@ -35,7 +35,18 @@ export async function adminLogin(username, password) {
   return data;
 }
 
-export function adminLogout() {
+export async function adminLogout() {
+  const token = getToken();
+  if (token) {
+    try {
+      await fetch(`${API_BASE}/admin/logout`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      // Server-side logout is best-effort; the local token is cleared anyway.
+    }
+  }
   localStorage.removeItem("soup_admin_token");
 }
 
