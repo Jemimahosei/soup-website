@@ -159,7 +159,9 @@
     <h2>Club admin</h2>
     <p class="section-sub">
       Manage events, resources, and announcements without touching code.
-      Demo credentials are in the README — change them before any shared deployment.
+      Sign in with the admin account: username <strong>admin</strong>,
+      password set in the hosting dashboard (Render → soup-website →
+      Environment → ADMIN_PASSWORD).
     </p>
 
     {#if !loggedIn}
@@ -169,7 +171,7 @@
       >
         <label>
           Username
-          <input bind:value={username} autocomplete="username" required />
+          <input bind:value={username} placeholder="admin" autocomplete="username" required />
         </label>
         <label>
           Password

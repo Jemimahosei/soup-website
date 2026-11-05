@@ -97,10 +97,14 @@ const RAW_OVERRIDES = {
 };
 export function imgFallback(e) {
   const img = e.currentTarget;
-  if (!img || img.dataset.rawFallback) return false;
+  if (!img) return false;
   const file = (img.getAttribute("src") || "").split("/").pop();
   if (!file) return false;
-  img.dataset.rawFallback = "1";
+  // Track the fallback per file, not per element: the home carousel
+  // reuses one <img> across slides, so a flag on the element alone
+  // would let the first slide's fallback block every later slide.
+  if (img.dataset.rawFallbackFor === file) return false;
+  img.dataset.rawFallbackFor = file;
   img.src = `${RAW_BASE}/${RAW_OVERRIDES[file] || `images/${file}`}`;
   return true;
 }
