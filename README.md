@@ -178,8 +178,9 @@ The app runs as a single service: the API serves the built frontend from
 1. Push this folder to GitHub (text files only — the club photos are
    binary, so they are NOT in the repo; see Photos below).
 2. Render dashboard → New → Blueprint → pick the repo. `render.yaml`
-   creates the web service + a free PostgreSQL database, runs
-   `migrate` + `seed` before each deploy, and serves `/api/health`.
+   creates the web service + a free PostgreSQL database; the service
+   runs `migrate` + `seed` on startup (both idempotent), and serves
+   `/api/health`.
 3. Set `ADMIN_USERNAME` / `ADMIN_PASSWORD` in Render (the blueprint
    generates a password). Local dev default is admin / soup-admin — do
    not use it on a live site.

@@ -8,8 +8,11 @@ services:
     env: node
     plan: free
     buildCommand: npm --prefix backend install && npm --prefix frontend install && npm --prefix frontend run build
-    startCommand: npm --prefix backend start
-    preDeployCommand: npm --prefix backend run migrate && npm --prefix backend run seed
+    startCommand: npm --prefix backend run migrate && npm --prefix backend run seed && npm --prefix backend start
+    # No preDeployCommand: Render free tier does not support it, so
+    # migrate + seed run on startup instead. Both are idempotent
+    # (migrate uses IF NOT EXISTS / ON CONFLICT; seed skips tables
+    # that already have rows), so restarts are safe.
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
