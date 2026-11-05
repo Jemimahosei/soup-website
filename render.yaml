@@ -1,0 +1,30 @@
+# Render blueprint: one Node web service + one free PostgreSQL database.
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repo.
+# The web service builds the frontend, then serves it from the API itself,
+# so the whole site runs on a single host and URL.
+services:
+  - type: web
+    name: soup-website
+    env: node
+    plan: free
+    buildCommand: npm --prefix backend install && npm --prefix frontend install && npm --prefix frontend run build
+    startCommand: npm --prefix backend start
+    preDeployCommand: npm --prefix backend run migrate && npm --prefix backend run seed
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: soup-db
+          property: connectionString
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+
+databases:
+  - name: soup-db
+    plan: free
+    databaseName: soup
+    user: soup
