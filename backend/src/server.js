@@ -37,6 +37,9 @@ app.get(
   "/api/events",
   asyncHandler(async (req, res) => {
     const filter = req.query.filter || "all";
+    if (!["all", "upcoming", "past"].includes(filter)) {
+      return res.status(400).json({ error: "Unknown filter" });
+    }
     let where = "";
     if (filter === "upcoming") where = "WHERE event_date >= CURRENT_DATE";
     if (filter === "past") where = "WHERE event_date < CURRENT_DATE";
@@ -47,11 +50,24 @@ app.get(
   })
 );
 
+// IDs in the URL must be valid Postgres integers; anything else is a 404,
+// not a 500 (previously "abc" or an out-of-range id crashed the query).
+function parseId(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647) {
+    res.status(404).json({ error: "Not found" });
+    return null;
+  }
+  return id;
+}
+
 app.get(
   "/api/events/:id",
   asyncHandler(async (req, res) => {
+    const id = parseId(req, res);
+    if (id === null) return;
     const { rows } = await pool.query("SELECT * FROM events WHERE id = $1", [
-      req.params.id,
+      id,
     ]);
     if (!rows.length) return res.status(404).json({ error: "Event not found" });
     res.json(rows[0]);
@@ -76,8 +92,10 @@ app.get(
 app.get(
   "/api/resources/:id",
   asyncHandler(async (req, res) => {
+    const id = parseId(req, res);
+    if (id === null) return;
     const { rows } = await pool.query("SELECT * FROM resources WHERE id = $1", [
-      req.params.id,
+      id,
     ]);
     if (!rows.length)
       return res.status(404).json({ error: "Resource not found" });
@@ -147,17 +165,64 @@ const TABLES = {
   announcements: { cols: ["title", "body", "pinned"] },
 };
 
+// Validate an admin write before it reaches the database: bad input gets a
+// 400 with a clear message instead of a 500 from a Postgres constraint.
+function validateWrite(table, body) {
+  const bad = (msg) => ({ error: msg });
+  const nonEmpty = (v) => typeof v === "string" && v.trim() !== "";
+  if (!nonEmpty(body.title)) return bad("Title is required");
+  if (table === "events") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(body.event_date || "") || Number.isNaN(Date.parse(body.event_date))) {
+      return bad("A valid event date (YYYY-MM-DD) is required");
+    }
+    for (const key of ["start_time", "end_time"]) {
+      const t = body[key];
+      if (t !== undefined && t !== null && t !== "") {
+        const m = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(t);
+        if (!m || +m[1] > 23 || +m[2] > 59 || (m[3] !== undefined && +m[3] > 59)) {
+          return bad(`${key} must be a valid time (HH:MM)`);
+        }
+      }
+    }
+    for (const key of ["spots_total", "spots_taken"]) {
+      const v = body[key];
+      if (v !== undefined && v !== null && v !== "" && !Number.isInteger(v)) {
+        return bad(`${key} must be a whole number`);
+      }
+    }
+  }
+  return null;
+}
+
 function crudRouter(table) {
   const router = express.Router();
   const { cols } = TABLES[table];
 
+  // Only columns actually present in the request body are written; omitted
+  // ones keep their current value (update) or the database default
+  // (create) instead of being overwritten with NULL (previously a partial
+  // update could 500 on a NOT NULL column). An explicitly empty string
+  // IS written, so clearing a field in the admin form works.
+  const presentCols = (body) => cols.filter((c) => body[c] !== undefined);
+  // Blank spot counts coming from an API client get the same treatment as
+  // the admin form: total is optional (null), taken defaults to 0.
+  const colValue = (c, v) => {
+    if (c === "spots_taken" && (v === "" || v === null)) return 0;
+    if (c === "spots_total" && v === "") return null;
+    return v ?? null;
+  };
+
   router.post(
     "/",
     asyncHandler(async (req, res) => {
-      const values = cols.map((c) => req.body[c] ?? null);
-      const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
+      const body = req.body || {};
+      const err = validateWrite(table, body);
+      if (err) return res.status(400).json(err);
+      const useCols = presentCols(body);
+      const values = useCols.map((c) => colValue(c, body[c]));
+      const placeholders = useCols.map((_, i) => `$${i + 1}`).join(", ");
       const { rows } = await pool.query(
-        `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${placeholders}) RETURNING *`,
+        `INSERT INTO ${table} (${useCols.join(", ")}) VALUES (${placeholders}) RETURNING *`,
         values
       );
       res.status(201).json(rows[0]);
@@ -167,10 +232,16 @@ function crudRouter(table) {
   router.put(
     "/:id",
     asyncHandler(async (req, res) => {
-      const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+      const id = parseId(req, res);
+      if (id === null) return;
+      const body = req.body || {};
+      const err = validateWrite(table, body);
+      if (err) return res.status(400).json(err);
+      const useCols = presentCols(body);
+      const sets = useCols.map((c, i) => `${c} = $${i + 1}`).join(", ");
       const { rows } = await pool.query(
-        `UPDATE ${table} SET ${sets}, updated_at = now() WHERE id = $${cols.length + 1} RETURNING *`,
-        [...cols.map((c) => req.body[c] ?? null), req.params.id]
+        `UPDATE ${table} SET ${sets}, updated_at = now() WHERE id = $${useCols.length + 1} RETURNING *`,
+        [...useCols.map((c) => colValue(c, body[c])), id]
       );
       if (!rows.length)
         return res.status(404).json({ error: `${table} item not found` });
@@ -181,9 +252,11 @@ function crudRouter(table) {
   router.delete(
     "/:id",
     asyncHandler(async (req, res) => {
+      const id = parseId(req, res);
+      if (id === null) return;
       const { rowCount } = await pool.query(
         `DELETE FROM ${table} WHERE id = $1`,
-        [req.params.id]
+        [id]
       );
       if (!rowCount)
         return res.status(404).json({ error: `${table} item not found` });

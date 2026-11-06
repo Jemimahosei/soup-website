@@ -17,10 +17,10 @@
     events: {
       label: "Events",
       fields: [
-        { name: "title", label: "Title", type: "text" },
+        { name: "title", label: "Title", type: "text", required: true },
         { name: "description", label: "Description", type: "textarea" },
         { name: "location", label: "Location", type: "text" },
-        { name: "event_date", label: "Date", type: "date" },
+        { name: "event_date", label: "Date", type: "date", required: true },
         { name: "start_time", label: "Start time", type: "time" },
         { name: "end_time", label: "End time", type: "time" },
         { name: "category", label: "Category", type: "select", options: ["game", "competition", "tradition", "trip", "social"] },
@@ -33,7 +33,7 @@
     resources: {
       label: "Resources",
       fields: [
-        { name: "title", label: "Title", type: "text" },
+        { name: "title", label: "Title", type: "text", required: true },
         { name: "category", label: "Category", type: "select", options: ["story", "poem", "guide", "link"] },
         { name: "description", label: "Description", type: "textarea" },
         { name: "url", label: "URL (links only)", type: "text" },
@@ -44,7 +44,7 @@
     announcements: {
       label: "Announcements",
       fields: [
-        { name: "title", label: "Title", type: "text" },
+        { name: "title", label: "Title", type: "text", required: true },
         { name: "body", label: "Body", type: "textarea" },
         { name: "pinned", label: "Pinned", type: "checkbox" },
       ],
@@ -57,9 +57,24 @@
   function emptyDraft(table) {
     const d = {};
     for (const f of TABLES[table].fields) {
-      d[f.name] = f.type === "checkbox" ? false : "";
+      // Selects default to their first option: a blank value would save an
+      // empty category/difficulty and render as an empty tag on the site.
+      d[f.name] = f.type === "checkbox" ? false : f.type === "select" ? f.options[0] : "";
     }
     return d;
+  }
+
+  // A 401 means the session ended (expired, logged out elsewhere). Send the
+  // user back to the login form instead of leaving them on a panel that
+  // fails every save with "Admin login required".
+  function handleAuthError(e) {
+    if (e && e.status === 401) {
+      adminLogout();
+      loggedIn = false;
+      loginError = "Your session ended. Please log in again.";
+      return true;
+    }
+    return false;
   }
 
   async function loadAll() {
@@ -71,7 +86,7 @@
       ]);
       error = "";
     } catch (e) {
-      error = `Could not load content: ${e.message}`;
+      if (!handleAuthError(e)) error = `Could not load content: ${e.message}`;
     }
   }
 
@@ -121,6 +136,11 @@
     notice = "";
     error = "";
     const body = { ...drafts[table] };
+    // Selects left blank (e.g. an older row saved with an empty category)
+    // fall back to the first option instead of saving an empty value.
+    for (const f of TABLES[table].fields) {
+      if (f.type === "select" && !body[f.name]) body[f.name] = f.options[0];
+    }
     // Blank spot counts: total spots is optional (null), but spots taken
     // is NOT NULL in the database — sending null for it made every
     // create with the field left blank fail with a 500. Default it to 0.
@@ -141,7 +161,7 @@
       cancelEdit(table);
       await loadAll();
     } catch (e) {
-      error = e.message;
+      if (!handleAuthError(e)) error = e.message;
     }
   }
 
@@ -152,7 +172,7 @@
       notice = "Item deleted.";
       await loadAll();
     } catch (e) {
-      error = e.message;
+      if (!handleAuthError(e)) error = e.message;
     }
   }
 
@@ -209,7 +229,7 @@
             {#if f.type === "textarea"}
               <label>
                 {f.label}
-                <textarea bind:value={drafts[table][f.name]}></textarea>
+                <textarea bind:value={drafts[table][f.name]} required={f.required}></textarea>
               </label>
             {:else if f.type === "select"}
               <label>
@@ -237,7 +257,7 @@
             {:else if f.type === "date"}
               <label>
                 {f.label}
-                <input type="date" bind:value={drafts[table][f.name]} />
+                <input type="date" bind:value={drafts[table][f.name]} required={f.required} />
               </label>
             {:else if f.type === "time"}
               <label>
@@ -247,7 +267,7 @@
             {:else}
               <label>
                 {f.label}
-                <input type="text" bind:value={drafts[table][f.name]} />
+                <input type="text" bind:value={drafts[table][f.name]} required={f.required} />
               </label>
             {/if}
           {/each}

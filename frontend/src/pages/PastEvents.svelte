@@ -70,7 +70,7 @@
         <article class="card poem">
           <h3>{p.title}</h3>
           <p class="meta">{p.description}</p>
-          <p>{p.body}</p>
+          <p style="white-space: pre-line;">{p.body}</p>
         </article>
       {/each}
     </div>

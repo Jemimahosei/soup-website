@@ -86,7 +86,7 @@
         <img
           src={`/images/${slides[slide].file}`}
           alt={slides[slide].label}
-          on:error={(e) => { if (!imgFallback(e)) failed[slide] = true; }}
+          on:error={(e) => { if (!imgFallback(e)) failed = { ...failed, [slide]: true }; }}
         />
       {/if}
     </div>
