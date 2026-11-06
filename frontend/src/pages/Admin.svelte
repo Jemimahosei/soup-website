@@ -54,6 +54,12 @@
   let drafts = { events: {}, resources: {}, announcements: {} };
   let editing = { events: null, resources: null, announcements: null };
 
+  // Two-step in-page delete confirmation, keyed "table:id" of the row
+  // awaiting its second click. The native confirm() dialog is
+  // auto-dismissed in some browsers and in automation, which made Delete
+  // silently do nothing — so the button itself flips to "Sure?" first.
+  let confirmingDelete = null;
+
   function emptyDraft(table) {
     const d = {};
     for (const f of TABLES[table].fields) {
@@ -166,7 +172,12 @@
   }
 
   async function remove(table, id) {
-    if (!confirm("Delete this item?")) return;
+    const key = `${table}:${id}`;
+    if (confirmingDelete !== key) {
+      confirmingDelete = key;
+      return;
+    }
+    confirmingDelete = null;
     try {
       await adminApi.remove(table, id);
       notice = "Item deleted.";
@@ -297,7 +308,9 @@
               </span>
               <span class="admin-actions">
                 <button class="btn btn-small" on:click={() => startEdit(table, item)}>Edit</button>
-                <button class="btn btn-small btn-danger" on:click={() => remove(table, item.id)}>Delete</button>
+                <button class="btn btn-small btn-danger" on:click={() => remove(table, item.id)}>
+                  {confirmingDelete === `${table}:${item.id}` ? "Sure?" : "Delete"}
+                </button>
               </span>
             </div>
           {/each}
