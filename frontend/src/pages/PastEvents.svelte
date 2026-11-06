@@ -6,6 +6,7 @@
   let stories = [];
   let poems = [];
   let error = "";
+  let loading = true;
 
   onMount(async () => {
     try {
@@ -16,6 +17,8 @@
       ]);
     } catch (e) {
       error = `Could not load past events: ${e.message}`;
+    } finally {
+      loading = false;
     }
   });
 </script>
@@ -25,6 +28,8 @@
     <h2>SOUP Past Events</h2>
     {#if error}
       <p class="error">{error}</p>
+    {:else if loading}
+      <p class="section-sub">Loading…</p>
     {:else if past.length === 0}
       <p class="section-sub">No dated past events in the database yet.</p>
     {:else}

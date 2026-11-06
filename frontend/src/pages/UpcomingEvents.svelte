@@ -4,12 +4,15 @@
 
   let upcoming = [];
   let error = "";
+  let loading = true;
 
   onMount(async () => {
     try {
       upcoming = await api.events("upcoming");
     } catch (e) {
       error = `Could not load upcoming events: ${e.message}`;
+    } finally {
+      loading = false;
     }
   });
 </script>
@@ -19,6 +22,8 @@
     <h2>SOUP Upcoming Events</h2>
     {#if error}
       <p class="error">{error}</p>
+    {:else if loading}
+      <p class="section-sub">Loading…</p>
     {:else if upcoming.length === 0}
       <p class="section-sub">
         No upcoming events are posted right now. New dates land here — and in

@@ -189,6 +189,10 @@ async function main() {
   r = await call("POST", "/api/admin/events", { token, body: { ...goodEvent, spots_total: null, spots_taken: 0 } });
   check("create blank spots -> 201", r.status === 201, `got ${r.status}`);
 
+  // The admin form leaves blank times as "" — that must save as NULL, not 500.
+  r = await call("POST", "/api/admin/events", { token, body: { ...goodEvent, title: "Blank Times", start_time: "", end_time: "" } });
+  check("create blank times -> 201", r.status === 201 && r.json.start_time === null, `got ${r.status} ${JSON.stringify(r.json)}`);
+
   r = await call("POST", "/api/admin/events", { token, body: { ...goodEvent, title: "" } });
   check("create empty title -> 400 (not 500)", r.status === 400, `got ${r.status}`);
   r = await call("POST", "/api/admin/events", { token, body: { ...goodEvent, title: undefined, event_date: undefined } });

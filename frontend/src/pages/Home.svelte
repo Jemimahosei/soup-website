@@ -5,6 +5,7 @@
   let announcements = [];
   let upcoming = [];
   let error = "";
+  let loading = true;
 
   // Photo carousel from the real site (index.html). Photos live in the
   // club's images/ folder at deploy time; if a file is missing, the slide
@@ -48,6 +49,8 @@
       ]);
     } catch (e) {
       error = `Could not load the latest updates: ${e.message}`;
+    } finally {
+      loading = false;
     }
   });
 </script>
@@ -140,7 +143,9 @@
 
   <section class="section">
     <h2>Announcements</h2>
-    {#if announcements.length === 0}
+    {#if loading}
+      <p class="section-sub">Loading…</p>
+    {:else if announcements.length === 0}
       <p class="section-sub">No announcements right now.</p>
     {:else}
       <div class="grid">
@@ -157,7 +162,9 @@
 
   <section class="section">
     <h2>Coming up</h2>
-    {#if upcoming.length === 0}
+    {#if loading}
+      <p class="section-sub">Loading…</p>
+    {:else if upcoming.length === 0}
       <p class="section-sub">
         No upcoming events are posted right now. New dates land here and in
         the

@@ -209,6 +209,10 @@ function crudRouter(table) {
   const colValue = (c, v) => {
     if (c === "spots_taken" && (v === "" || v === null)) return 0;
     if (c === "spots_total" && v === "") return null;
+    // Blank time inputs arrive as "" — Postgres rejects "" for TIME, so
+    // treat it as "no time" (NULL). This was the last create blocker:
+    // the form leaves start/end blank unless the admin picks a time.
+    if ((c === "start_time" || c === "end_time") && v === "") return null;
     return v ?? null;
   };
 
