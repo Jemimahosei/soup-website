@@ -1,5 +1,7 @@
 # SOUP Website — Dynamic Rebuild
 
+**Live site:** https://soup-website.onrender.com
+
 SOUP (Students for Outdoor Unsupervised Playtime) is an outdoors club at
 Cornell. The old site (`Jemimahosei/CornellSOUP`) is a static HTML/CSS/JS
 site; this is the dynamic rebuild from jem's upgrade spec: take the static
@@ -171,6 +173,8 @@ Admin (header `Authorization: Bearer <token>` from `POST /api/admin/login`):
   "furthur" → "further").
 
 ## Deploy (Render blueprint)
+
+**Live site:** https://soup-website.onrender.com
 
 The app runs as a single service: the API serves the built frontend from
 `frontend/dist`, so one host + one URL covers everything.
