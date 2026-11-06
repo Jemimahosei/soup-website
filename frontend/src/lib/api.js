@@ -2,9 +2,15 @@ export const API_BASE =
   import.meta.env.VITE_API_URL || "/api";
 
 async function req(path, options = {}) {
+  // NB: options may carry its own headers (admin calls add Authorization).
+  // Merge them with the default Content-Type FIRST, then spread the rest
+  // of the options — spreading options itself would overwrite the merged
+  // headers object, dropping Content-Type so the server never parses the
+  // JSON body (admin creates then failed as "Title is required" / 500).
+  const { headers: optHeaders, ...rest } = options;
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
+    headers: { "Content-Type": "application/json", ...(optHeaders || {}) },
+    ...rest,
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

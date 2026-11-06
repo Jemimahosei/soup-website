@@ -11,7 +11,7 @@
   // falls back to a labelled card instead of a broken image.
   const slides = [
     { file: "ctf4.jpg", label: "Capture the Flag" },
-    { file: "ctf5.jpg", label: "Capture the Flag" },
+    { file: "ctf6.jpg", label: "Capture the Flag" },
     { file: "camping1.jpg", label: "Camping" },
     { file: "snow1.jpg", label: "Snowball Fight" },
     { file: "leaf-pile6.jpg", label: "The Big Leaf Pile" },
