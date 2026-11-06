@@ -218,6 +218,27 @@ async function main() {
   check("delete again -> 404", r.status === 404, `got ${r.status}`);
   r = await call("DELETE", "/api/admin/events/abc", { token });
   check("delete abc id -> 404 (not 500)", r.status === 404, `got ${r.status}`);
+
+  // Upcoming/past boundary is "today in Ithaca", not "today on the server"
+  // (the host runs on UTC, so after 7pm Eastern it is already tomorrow
+  // there). An event dated today-NY is upcoming; yesterday-NY is past.
+  const todayNY = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const [nyY, nyM, nyD] = todayNY.split("-").map(Number);
+  const ydayNY = new Date(Date.UTC(nyY, nyM - 1, nyD - 1)).toISOString().slice(0, 10);
+  r = await call("POST", "/api/admin/events", { token, body: { ...goodEvent, title: "Today NY", event_date: todayNY } });
+  check("create today-NY event -> 201", r.status === 201 && r.json.id, `got ${r.status}`);
+  const todayId = r.json && r.json.id;
+  r = await call("POST", "/api/admin/events", { token, body: { ...goodEvent, title: "Yesterday NY", event_date: ydayNY } });
+  check("create yesterday-NY event -> 201", r.status === 201 && r.json.id, `got ${r.status}`);
+  const ydayId = r.json && r.json.id;
+  r = await call("GET", "/api/events?filter=upcoming");
+  check("upcoming includes today-NY, excludes yesterday-NY", r.status === 200 && r.json.some((e) => e.title === "Today NY") && !r.json.some((e) => e.title === "Yesterday NY"), `got ${JSON.stringify(r.json.map((e) => e.title))}`);
+  r = await call("GET", "/api/events?filter=past");
+  check("past includes yesterday-NY, excludes today-NY", r.status === 200 && r.json.some((e) => e.title === "Yesterday NY") && !r.json.some((e) => e.title === "Today NY"), `got ${JSON.stringify(r.json.map((e) => e.title))}`);
+  r = await call("DELETE", `/api/admin/events/${todayId}`, { token });
+  check("delete today-NY test event -> 200", r.status === 200, `got ${r.status}`);
+  r = await call("DELETE", `/api/admin/events/${ydayId}`, { token });
+  check("delete yesterday-NY test event -> 200", r.status === 200, `got ${r.status}`);
   r = await call("PUT", `/api/admin/events/${evId}`, { body: goodEvent });
   check("update without token -> 401", r.status === 401, `got ${r.status}`);
 

@@ -32,6 +32,16 @@ const asyncHandler = (fn) => (req, res, next) =>
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
+// "Today" means today in Ithaca, not today on the server. The host runs
+// on UTC, so after 7pm Eastern it is already tomorrow there and an event
+// dated today would wrongly fall into "past". Compute the New York date
+// in JS and compare against it.
+function todayNY() {
+  return new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/New_York",
+  });
+}
+
 // ---- Public: events ----
 app.get(
   "/api/events",
@@ -41,10 +51,18 @@ app.get(
       return res.status(400).json({ error: "Unknown filter" });
     }
     let where = "";
-    if (filter === "upcoming") where = "WHERE event_date >= CURRENT_DATE";
-    if (filter === "past") where = "WHERE event_date < CURRENT_DATE";
+    let params = [];
+    if (filter === "upcoming") {
+      where = "WHERE event_date >= $1";
+      params = [todayNY()];
+    }
+    if (filter === "past") {
+      where = "WHERE event_date < $1";
+      params = [todayNY()];
+    }
     const { rows } = await pool.query(
-      `SELECT * FROM events ${where} ORDER BY event_date ASC, start_time ASC`
+      `SELECT * FROM events ${where} ORDER BY event_date ASC, start_time ASC`,
+      params
     );
     res.json(rows);
   })
