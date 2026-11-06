@@ -60,6 +60,19 @@
   // silently do nothing — so the button itself flips to "Sure?" first.
   let confirmingDelete = null;
 
+  // The lists MUST be a reactive declaration, not a function call.
+  // `{#each lists()[table] as item}` never re-ran when the data arrived:
+  // Svelte only re-evaluates a function call when the function itself
+  // changes, so the lists rendered empty on every reload with a stored
+  // token (and never refreshed after a create/delete). With $: lists,
+  // assigning events/resources/announcements re-runs this line, lists
+  // changes, and the list blocks re-render.
+  $: lists = { events, resources, announcements };
+
+  // Loading state for the lists: without one, a slow first fetch left the
+  // page showing only the create forms with no feedback at all.
+  let listsLoading = false;
+
   function emptyDraft(table) {
     const d = {};
     for (const f of TABLES[table].fields) {
@@ -84,6 +97,7 @@
   }
 
   async function loadAll() {
+    listsLoading = true;
     try {
       [events, resources, announcements] = await Promise.all([
         api.events("all"),
@@ -93,6 +107,8 @@
       error = "";
     } catch (e) {
       if (!handleAuthError(e)) error = `Could not load content: ${e.message}`;
+    } finally {
+      listsLoading = false;
     }
   }
 
@@ -186,8 +202,6 @@
       if (!handleAuthError(e)) error = e.message;
     }
   }
-
-  const lists = () => ({ events, resources, announcements });
 </script>
 
 <div class="container">
@@ -227,6 +241,7 @@
       {/if}
       {#if error}
         <p class="error">{error}</p>
+        <p><button class="btn btn-small" on:click={loadAll}>Try again</button></p>
       {/if}
 
       {#each Object.keys(TABLES) as table}
@@ -295,7 +310,10 @@
         </form>
 
         <div style="margin-top: 1rem;">
-          {#each lists()[table] as item}
+          {#if listsLoading}
+            <p class="meta">Loading…</p>
+          {:else}
+          {#each lists[table] as item}
             <div class="admin-item">
               <span>
                 <strong>{item.title}</strong>
@@ -314,6 +332,7 @@
               </span>
             </div>
           {/each}
+          {/if}
         </div>
       {/each}
     {/if}
