@@ -1,5 +1,4 @@
-# SOUP Website — Dynamic Rebuild
-
+# SOUP Dynamic Website 
 **Live site:** https://soup-website.onrender.com
 
 SOUP (Students for Outdoor Unsupervised Playtime) is an outdoors club at
