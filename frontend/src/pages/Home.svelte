@@ -8,16 +8,11 @@
   let error = "";
   let loading = true;
 
-  // Home layout (Jemimah, 2026-11-22): a stack of identical yellow
-  // boards — the Welcome board, then Next hangout, then any other
-  // pinned board — all with the same styling. Unpinned announcements
-  // (e.g. the 161 Things recap) are a different thing: they live in
-  // their own Announcements section further down, as on the old site.
-  $: welcome = announcements.find((a) =>
-    String(a.title || "").trim().toLowerCase().startsWith("welcome to soup")
-  );
-  $: pinnedBoards = announcements.filter((a) => a !== welcome && a.pinned);
-  $: news = announcements.filter((a) => a !== welcome && !a.pinned);
+  // Pinned news belongs in the home page's upcoming section ("Next
+  // hangout") — Jemimah's settled mapping. The API already returns
+  // pinned announcements first; unpinned ones keep showing below.
+  $: pinned = announcements.filter((a) => a.pinned);
+  $: unpinned = announcements.filter((a) => !a.pinned);
   $: nextEvent = upcoming.length ? upcoming[0] : null;
 
   // "What we do" tiles — static in the mockup, mirroring the club's
@@ -85,27 +80,26 @@
   </div>
 </section>
 
-{#if welcome}
-  <section class="wrap next welcome-board">
-    <div class="next-card board-card">
-      <div class="next-body">
-        <div class="next-title">{welcome.title}</div>
-        <p style="white-space: pre-line;">{welcome.body}</p>
-      </div>
-    </div>
-  </section>
-{/if}
-
 <section class="wrap next">
   <h2 class="h-section">Next hangout</h2>
   {#if error}
     <p class="error">{error}</p>
   {/if}
 
+  {#each pinned as a}
+    <div class="next-card pinned-card">
+      <div class="next-body">
+        <div class="next-title">{a.title}</div>
+        <p style="white-space: pre-line;">{a.body}</p>
+      </div>
+      <span class="pill pill-pin">Pinned</span>
+    </div>
+  {/each}
+
   {#if loading}
-    <div class="next-card board-card"><div class="next-body"><div class="next-title">Loading…</div></div></div>
+    <div class="next-card"><div class="next-body"><div class="next-title">Loading…</div></div></div>
   {:else if nextEvent}
-    <div class="next-card board-card">
+    <div class="next-card">
       <div class="next-body">
         <div class="meta-line">
           {fmtDateLong(nextEvent.event_date)}{nextEvent.location ? `, ${nextEvent.location}` : ""}
@@ -119,10 +113,11 @@
       </div>
     </div>
   {:else}
-    <div class="next-card board-card">
+    <div class="next-card">
       <div class="next-body">
-        <p style="margin-top:0">
-          New dates go to the GroupMe group chat first, usually a few days
+        <div class="next-title">Nothing is posted yet.</div>
+        <p>
+          New dates go to the SoupMe group chat first, usually a few days
           ahead. Camping trips often happen on a weekend with almost no
           planning.
         </p>
@@ -134,14 +129,16 @@
     </div>
   {/if}
 
-  {#each pinnedBoards as a}
-    <div class="next-card board-card">
-      <div class="next-body">
-        <div class="next-title">{a.title}</div>
-        <p style="white-space: pre-line;">{a.body}</p>
-      </div>
+  {#if unpinned.length}
+    <div class="news-list">
+      {#each unpinned as a}
+        <article class="news-card">
+          <h3>{a.title}</h3>
+          <p style="white-space: pre-line;">{a.body}</p>
+        </article>
+      {/each}
     </div>
-  {/each}
+  {/if}
 </section>
 
 <section class="wrap what">
@@ -160,20 +157,6 @@
     {/each}
   </div>
 </section>
-
-{#if news.length}
-  <section class="wrap announcements">
-    <h2 class="h-section">Announcements</h2>
-    <div class="news-list">
-      {#each news as a}
-        <article class="news-card">
-          <h3>{a.title}</h3>
-          <p style="white-space: pre-line;">{a.body}</p>
-        </article>
-      {/each}
-    </div>
-  </section>
-{/if}
 
 <section class="quote-band">
   <div class="quote-inner">
@@ -223,21 +206,12 @@
   .stat-label { color: var(--sand); }
 
   .next { padding-top: 72px; padding-bottom: 24px; }
-  .welcome-board { padding-bottom: 0; }
-  .welcome-board .next-card { margin-top: 0; }
   .next-card { background: var(--sand); border-radius: 20px; padding: 36px; display: flex; gap: 32px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 20px; }
   .next-body { flex: 1 1 380px; min-width: 0; }
   .next-title { font-family: var(--display); font-weight: 800; font-size: 30px; line-height: 1.15; }
   .next-body p { margin: 10px 0 0; max-width: 32em; }
   .next-actions { display: flex; gap: 12px; flex-wrap: wrap; }
   .pinned-card { align-items: flex-start; }
-  /* The yellow boards (Welcome, Next hangout, pinned boards) all
-     share one identical treatment: a simple stacked block, title
-     over body, actions underneath — no side-by-side layout. */
-  .board-card { flex-direction: column; align-items: flex-start; justify-content: flex-start; }
-  .board-card .next-actions { margin-top: 20px; }
-  .announcements { padding-top: 56px; }
-  .announcements .news-list { margin-top: 20px; }
   .news-list { display: grid; gap: 16px; margin-top: 24px; }
   .news-card { background: #fff; border-radius: 16px; padding: 24px 28px; }
   .news-card h3 { margin: 0 0 6px; font-family: var(--display); font-weight: 800; font-size: 24px; }
