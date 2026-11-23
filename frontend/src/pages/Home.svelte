@@ -8,11 +8,15 @@
   let error = "";
   let loading = true;
 
-  // Pinned news belongs in the home page's upcoming section ("Next
-  // hangout") — Jemimah's settled mapping. The API already returns
-  // pinned announcements first; unpinned ones keep showing below.
-  $: pinned = announcements.filter((a) => a.pinned);
-  $: unpinned = announcements.filter((a) => !a.pinned);
+  // Home layout (Jemimah, 2026-11-22): the Welcome board sits above
+  // "Next hangout"; Next hangout itself is only the next event (or
+  // the group-chat note when no date is posted). Other announcements
+  // — pinned or not — show as news cards underneath, pinned first
+  // (the API already returns them in that order).
+  $: welcome = announcements.find((a) =>
+    String(a.title || "").trim().toLowerCase().startsWith("welcome to soup")
+  );
+  $: news = announcements.filter((a) => a !== welcome);
   $: nextEvent = upcoming.length ? upcoming[0] : null;
 
   // "What we do" tiles — static in the mockup, mirroring the club's
@@ -80,20 +84,22 @@
   </div>
 </section>
 
+{#if welcome}
+  <section class="wrap next welcome-board">
+    <div class="next-card pinned-card">
+      <div class="next-body">
+        <div class="next-title">{welcome.title}</div>
+        <p style="white-space: pre-line;">{welcome.body}</p>
+      </div>
+    </div>
+  </section>
+{/if}
+
 <section class="wrap next">
   <h2 class="h-section">Next hangout</h2>
   {#if error}
     <p class="error">{error}</p>
   {/if}
-
-  {#each pinned as a}
-    <div class="next-card pinned-card">
-      <div class="next-body">
-        <div class="next-title">{a.title}</div>
-        <p style="white-space: pre-line;">{a.body}</p>
-      </div>
-    </div>
-  {/each}
 
   {#if loading}
     <div class="next-card"><div class="next-body"><div class="next-title">Loading…</div></div></div>
@@ -114,9 +120,8 @@
   {:else}
     <div class="next-card">
       <div class="next-body">
-        <div class="next-title">Nothing is posted yet.</div>
-        <p>
-          New dates go to the SoupMe group chat first, usually a few days
+        <p style="margin-top:0">
+          New dates go to the GroupMe group chat first, usually a few days
           ahead. Camping trips often happen on a weekend with almost no
           planning.
         </p>
@@ -128,9 +133,9 @@
     </div>
   {/if}
 
-  {#if unpinned.length}
+  {#if news.length}
     <div class="news-list">
-      {#each unpinned as a}
+      {#each news as a}
         <article class="news-card">
           <h3>{a.title}</h3>
           <p style="white-space: pre-line;">{a.body}</p>
@@ -205,6 +210,8 @@
   .stat-label { color: var(--sand); }
 
   .next { padding-top: 72px; padding-bottom: 24px; }
+  .welcome-board { padding-bottom: 0; }
+  .welcome-board .next-card { margin-top: 0; }
   .next-card { background: var(--sand); border-radius: 20px; padding: 36px; display: flex; gap: 32px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 20px; }
   .next-body { flex: 1 1 380px; min-width: 0; }
   .next-title { font-family: var(--display); font-weight: 800; font-size: 30px; line-height: 1.15; }
