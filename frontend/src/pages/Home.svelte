@@ -8,15 +8,16 @@
   let error = "";
   let loading = true;
 
-  // Home layout (Jemimah, 2026-11-22): the Welcome board sits above
-  // "Next hangout"; Next hangout itself is only the next event (or
-  // the group-chat note when no date is posted). Other announcements
-  // — pinned or not — show as news cards underneath, pinned first
-  // (the API already returns them in that order).
+  // Home layout (Jemimah, 2026-11-22): a stack of identical yellow
+  // boards — the Welcome board, then Next hangout, then any other
+  // pinned board — all with the same styling. Unpinned announcements
+  // (e.g. the 161 Things recap) are a different thing: they live in
+  // their own Announcements section further down, as on the old site.
   $: welcome = announcements.find((a) =>
     String(a.title || "").trim().toLowerCase().startsWith("welcome to soup")
   );
-  $: news = announcements.filter((a) => a !== welcome);
+  $: pinnedBoards = announcements.filter((a) => a !== welcome && a.pinned);
+  $: news = announcements.filter((a) => a !== welcome && !a.pinned);
   $: nextEvent = upcoming.length ? upcoming[0] : null;
 
   // "What we do" tiles — static in the mockup, mirroring the club's
@@ -86,7 +87,7 @@
 
 {#if welcome}
   <section class="wrap next welcome-board">
-    <div class="next-card pinned-card">
+    <div class="next-card board-card">
       <div class="next-body">
         <div class="next-title">{welcome.title}</div>
         <p style="white-space: pre-line;">{welcome.body}</p>
@@ -102,9 +103,9 @@
   {/if}
 
   {#if loading}
-    <div class="next-card"><div class="next-body"><div class="next-title">Loading…</div></div></div>
+    <div class="next-card board-card"><div class="next-body"><div class="next-title">Loading…</div></div></div>
   {:else if nextEvent}
-    <div class="next-card">
+    <div class="next-card board-card">
       <div class="next-body">
         <div class="meta-line">
           {fmtDateLong(nextEvent.event_date)}{nextEvent.location ? `, ${nextEvent.location}` : ""}
@@ -118,7 +119,7 @@
       </div>
     </div>
   {:else}
-    <div class="next-card">
+    <div class="next-card board-card">
       <div class="next-body">
         <p style="margin-top:0">
           New dates go to the GroupMe group chat first, usually a few days
@@ -133,16 +134,14 @@
     </div>
   {/if}
 
-  {#if news.length}
-    <div class="news-list">
-      {#each news as a}
-        <article class="news-card">
-          <h3>{a.title}</h3>
-          <p style="white-space: pre-line;">{a.body}</p>
-        </article>
-      {/each}
+  {#each pinnedBoards as a}
+    <div class="next-card board-card">
+      <div class="next-body">
+        <div class="next-title">{a.title}</div>
+        <p style="white-space: pre-line;">{a.body}</p>
+      </div>
     </div>
-  {/if}
+  {/each}
 </section>
 
 <section class="wrap what">
@@ -161,6 +160,20 @@
     {/each}
   </div>
 </section>
+
+{#if news.length}
+  <section class="wrap announcements">
+    <h2 class="h-section">Announcements</h2>
+    <div class="news-list">
+      {#each news as a}
+        <article class="news-card">
+          <h3>{a.title}</h3>
+          <p style="white-space: pre-line;">{a.body}</p>
+        </article>
+      {/each}
+    </div>
+  </section>
+{/if}
 
 <section class="quote-band">
   <div class="quote-inner">
@@ -218,6 +231,13 @@
   .next-body p { margin: 10px 0 0; max-width: 32em; }
   .next-actions { display: flex; gap: 12px; flex-wrap: wrap; }
   .pinned-card { align-items: flex-start; }
+  /* The yellow boards (Welcome, Next hangout, pinned boards) all
+     share one identical treatment: a simple stacked block, title
+     over body, actions underneath — no side-by-side layout. */
+  .board-card { flex-direction: column; align-items: flex-start; justify-content: flex-start; }
+  .board-card .next-actions { margin-top: 20px; }
+  .announcements { padding-top: 56px; }
+  .announcements .news-list { margin-top: 20px; }
   .news-list { display: grid; gap: 16px; margin-top: 24px; }
   .news-card { background: #fff; border-radius: 16px; padding: 24px 28px; }
   .news-card h3 { margin: 0 0 6px; font-family: var(--display); font-weight: 800; font-size: 24px; }
