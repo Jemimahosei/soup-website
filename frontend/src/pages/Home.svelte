@@ -98,7 +98,6 @@
         <div class="next-title">{a.title}</div>
         <p style="white-space: pre-line;">{a.body}</p>
       </div>
-      <span class="pill pill-pin">Pinned</span>
     </div>
   {/each}
 
