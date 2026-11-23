@@ -9,6 +9,34 @@ app.use(express.json());
 
 const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
 
+// Passwords are stored as salted scrypt hashes ("scrypt:<salt>:<hash>").
+// Rows written before this change hold a bare sha256 hex digest; those
+// still verify, and are upgraded to scrypt on the next successful login.
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+  return `scrypt:${salt}:${hash}`;
+}
+function verifyPassword(stored, password) {
+  if (!stored || typeof password !== "string") return false;
+  if (stored.startsWith("scrypt:")) {
+    const [, salt, expected] = stored.split(":");
+    if (!salt || !expected) return false;
+    const actual = crypto.scryptSync(password, salt, 64);
+    const exp = Buffer.from(expected, "hex");
+    return actual.length === exp.length && crypto.timingSafeEqual(actual, exp);
+  }
+  return stored === sha256(password); // legacy rows
+}
+const isLegacyHash = (stored) => !!stored && !stored.startsWith("scrypt:");
+
+// Sessions gained a username column (used by the change-password and
+// remove-admin guards). Add it on boot as well as in migrate.js, so a
+// deploy that only restarts the server still works.
+pool
+  .query("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS username TEXT")
+  .catch((e) => console.error(e));
+
 // Admin sessions are stored in the database (see migrate.js), so a
 // redeploy or restart does not invalidate a signed-in session.
 async function requireAdmin(req, res, next) {
@@ -16,10 +44,13 @@ async function requireAdmin(req, res, next) {
   if (token) {
     try {
       const { rows } = await pool.query(
-        "SELECT expires_at FROM sessions WHERE token = $1",
+        "SELECT expires_at, username FROM sessions WHERE token = $1",
         [token]
       );
-      if (rows.length && rows[0].expires_at > Date.now()) return next();
+      if (rows.length && rows[0].expires_at > Date.now()) {
+        req.adminUsername = rows[0].username || null;
+        return next();
+      }
     } catch (e) {
       console.error(e);
     }
@@ -144,15 +175,22 @@ app.post(
       "SELECT * FROM admins WHERE username = $1",
       [username]
     );
-    if (!rows.length || rows[0].password_hash !== sha256(password)) {
+    if (!rows.length || !verifyPassword(rows[0].password_hash, password)) {
       return res.status(401).json({ error: "Invalid credentials" });
+    }
+    if (isLegacyHash(rows[0].password_hash)) {
+      // Transparently upgrade the stored hash to scrypt.
+      await pool.query(
+        "UPDATE admins SET password_hash = $1 WHERE id = $2",
+        [hashPassword(password), rows[0].id]
+      );
     }
     const token = crypto.randomBytes(32).toString("hex");
     const expiry = Date.now() + 24 * 60 * 60 * 1000;
     await pool.query("DELETE FROM sessions WHERE expires_at < $1", [Date.now()]);
     await pool.query(
-      "INSERT INTO sessions (token, expires_at) VALUES ($1, $2)",
-      [token, expiry]
+      "INSERT INTO sessions (token, expires_at, username) VALUES ($1, $2, $3)",
+      [token, expiry, username]
     );
     res.json({ token, username });
   })
@@ -166,6 +204,113 @@ app.post(
     if (token) {
       await pool.query("DELETE FROM sessions WHERE token = $1", [token]);
     }
+    res.json({ ok: true });
+  })
+);
+
+// ---- Admin: manage who has admin access ----
+// Each executive-board member gets their own account. A signed-in
+// admin can add the next board, remove people who have left, and
+// change their own password — so access survives the yearly handover
+// without one shared password that can never be taken back.
+const USERNAME_RE = /^[A-Za-z0-9._-]{3,32}$/;
+const validNewPassword = (p) => typeof p === "string" && p.length >= 8;
+
+app.get(
+  "/api/admin/admins",
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      "SELECT username, created_at FROM admins ORDER BY created_at ASC, username ASC"
+    );
+    res.json(rows);
+  })
+);
+
+app.post(
+  "/api/admin/admins",
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const { username, password } = req.body || {};
+    const name = typeof username === "string" ? username.trim() : "";
+    if (!USERNAME_RE.test(name)) {
+      return res.status(400).json({
+        error:
+          "Username must be 3–32 characters: letters, numbers, dots, dashes or underscores",
+      });
+    }
+    if (!validNewPassword(password)) {
+      return res
+        .status(400)
+        .json({ error: "Password must be at least 8 characters" });
+    }
+    const existing = await pool.query(
+      "SELECT id FROM admins WHERE username = $1",
+      [name]
+    );
+    if (existing.rows.length) {
+      return res.status(409).json({ error: "That username is already taken" });
+    }
+    await pool.query(
+      "INSERT INTO admins (username, password_hash) VALUES ($1, $2)",
+      [name, hashPassword(password)]
+    );
+    res.status(201).json({ username: name });
+  })
+);
+
+app.delete(
+  "/api/admin/admins/:username",
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const name = req.params.username;
+    const { rows: all } = await pool.query("SELECT username FROM admins");
+    if (!all.some((a) => a.username === name)) {
+      return res.status(404).json({ error: "No such admin" });
+    }
+    if (all.length <= 1) {
+      return res
+        .status(400)
+        .json({ error: "You can't remove the last admin account" });
+    }
+    if (req.adminUsername && name === req.adminUsername) {
+      return res.status(400).json({
+        error: "You can't remove your own account — ask another admin to do it",
+      });
+    }
+    await pool.query("DELETE FROM admins WHERE username = $1", [name]);
+    // Sign the removed person out everywhere, too.
+    await pool.query("DELETE FROM sessions WHERE username = $1", [name]);
+    res.json({ ok: true });
+  })
+);
+
+app.post(
+  "/api/admin/change-password",
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    if (!req.adminUsername) {
+      return res
+        .status(401)
+        .json({ error: "Please log in again to change your password" });
+    }
+    const { currentPassword, newPassword } = req.body || {};
+    if (!validNewPassword(newPassword)) {
+      return res
+        .status(400)
+        .json({ error: "New password must be at least 8 characters" });
+    }
+    const { rows } = await pool.query(
+      "SELECT * FROM admins WHERE username = $1",
+      [req.adminUsername]
+    );
+    if (!rows.length || !verifyPassword(rows[0].password_hash, currentPassword || "")) {
+      return res.status(401).json({ error: "Current password is wrong" });
+    }
+    await pool.query(
+      "UPDATE admins SET password_hash = $1 WHERE username = $2",
+      [hashPassword(newPassword), req.adminUsername]
+    );
     res.json({ ok: true });
   })
 );

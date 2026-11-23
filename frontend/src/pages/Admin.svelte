@@ -1,6 +1,6 @@
 <script>
   import { onMount } from "svelte";
-  import { api, adminApi, adminLogin, adminLogout, getToken, fmtDateLong, todayNY } from "../lib/api.js";
+  import { api, adminApi, adminLogin, adminLogout, getToken, getUsername, listAdmins, addAdmin, removeAdmin, changeMyPassword, fmtDateLong, todayNY } from "../lib/api.js";
 
   let username = "admin";
   let password = "";
@@ -154,6 +154,72 @@
     loggedIn = false;
   }
 
+  // --- Admins & access (individual accounts for each board member) ---
+  let admins = [];
+  let adminsLoading = false;
+  let adminsError = "";
+  let adminsNotice = "";
+  let newAdmin = { username: "", password: "" };
+  let pwForm = { current: "", next: "" };
+  $: myUsername = getUsername();
+
+  async function loadAdmins() {
+    adminsLoading = true;
+    try {
+      admins = await listAdmins();
+      adminsError = "";
+    } catch (e) {
+      if (!handleAuthError(e)) adminsError = `Could not load admin accounts: ${e.message}`;
+    } finally {
+      adminsLoading = false;
+    }
+  }
+
+  function openAdmins() {
+    view = "admins";
+    adminsNotice = "";
+    adminsError = "";
+    loadAdmins();
+  }
+
+  async function submitNewAdmin() {
+    adminsError = "";
+    adminsNotice = "";
+    try {
+      await addAdmin(newAdmin.username.trim(), newAdmin.password);
+      adminsNotice = `${newAdmin.username.trim()} can now log in with the password you set. They can change it in this section after logging in.`;
+      newAdmin = { username: "", password: "" };
+      await loadAdmins();
+    } catch (e) {
+      if (!handleAuthError(e)) adminsError = e.message;
+    }
+  }
+
+  async function submitRemoveAdmin(name) {
+    confirmingDelete = null;
+    adminsError = "";
+    adminsNotice = "";
+    try {
+      await removeAdmin(name);
+      adminsNotice = `${name} no longer has admin access.`;
+      await loadAdmins();
+    } catch (e) {
+      if (!handleAuthError(e)) adminsError = e.message;
+    }
+  }
+
+  async function submitChangePassword() {
+    adminsError = "";
+    adminsNotice = "";
+    try {
+      await changeMyPassword(pwForm.current, pwForm.next);
+      adminsNotice = "Your password has been changed.";
+      pwForm = { current: "", next: "" };
+    } catch (e) {
+      if (!handleAuthError(e)) adminsError = e.message;
+    }
+  }
+
   function startEdit(table, item) {
     const d = {};
     for (const f of TABLES[table].fields) {
@@ -300,7 +366,7 @@
         <label class="flabel" for="admin-password">Password</label>
         <input id="admin-password" class="f-input" type="password" bind:value={password} autocomplete="current-password" required />
         <button class="btn-cta cta" type="submit">Log in</button>
-        <p class="forgot">Forgot the password? Ask whoever set up the site to reset it in the hosting settings.</p>
+        <p class="forgot">Forgot your password? Ask another admin to remove your account in Admins &amp; access and add you again with a new starting password.</p>
       </form>
     </main>
   </div>
@@ -314,6 +380,7 @@
         </a>
         <button type="button" class="side-link" class:active={view === "events"} on:click={() => (view = "events")}>Events</button>
         <button type="button" class="side-link" class:active={view === "content"} on:click={() => (view = "content")}>Stories, poems and news</button>
+        <button type="button" class="side-link" class:active={view === "admins"} on:click={openAdmins}>Admins &amp; access</button>
         <a class="side-link side-gap" href="#/">View the site</a>
         <button type="button" class="side-link" on:click={doLogout}>Log out</button>
       </aside>
@@ -522,6 +589,75 @@
               </div>
             </form>
           {/if}
+        {/if}
+
+        {#if view === "admins"}
+          <div class="admin-head">
+            <h1>Admins &amp; access</h1>
+          </div>
+
+          {#if adminsNotice}<div class="notice" role="status">{adminsNotice}</div>{/if}
+          {#if adminsError}<div class="alert-error" role="alert">{adminsError}</div>{/if}
+
+          <p style="max-width:640px">Everyone on the executive board can have their own account. When the board changes, add the new people here and remove the old ones — nobody has to share a password, and someone who leaves can be cut off without locking everyone else out.</p>
+          <p>You are signed in as <strong>{myUsername || "admin"}</strong>.</p>
+
+          <h2 style="margin-top:28px">Who has access</h2>
+          {#if adminsLoading}
+            <div class="admin-empty"><p>Loading…</p></div>
+          {:else if admins.length === 0}
+            <div class="admin-empty"><p>No admin accounts found.</p></div>
+          {:else}
+            <div class="admin-list">
+              {#each admins as a}
+                <div class="admin-row">
+                  <div class="grow">
+                    <div class="row-title">{a.username}{#if a.username === myUsername} <span class="pill pill-up">you</span>{/if}</div>
+                    <div class="row-sub">Admin account</div>
+                  </div>
+                  {#if a.username !== myUsername}
+                    {#if confirmingDelete === `admins:${a.username}`}
+                      <div class="confirm-actions">
+                        <span class="q">Remove {a.username}'s access? They will be signed out and can't log in again.</span>
+                        <button type="button" class="btn-danger" on:click={() => submitRemoveAdmin(a.username)}>Yes, remove</button>
+                        <button type="button" class="btn-ghost ghost" on:click={() => (confirmingDelete = null)}>Keep them</button>
+                      </div>
+                    {:else}
+                      <div class="row-actions">
+                        <button type="button" class="btn-delete-ghost" disabled={admins.length <= 1} on:click={() => (confirmingDelete = `admins:${a.username}`)}>Remove</button>
+                      </div>
+                    {/if}
+                  {/if}
+                </div>
+              {/each}
+            </div>
+            {#if admins.length <= 1}
+              <p class="row-sub">This is the only admin account, so it can't be removed. Add a second account first.</p>
+            {/if}
+          {/if}
+
+          <h2 style="margin-top:32px">Add an admin</h2>
+          <form class="admin-form" on:submit|preventDefault={submitNewAdmin}>
+            <label class="flabel" for="na-username">Username</label>
+            <input id="na-username" class="f-input" type="text" bind:value={newAdmin.username} placeholder="e.g. jemimah" autocomplete="off" required />
+            <label class="flabel" for="na-password">Starting password</label>
+            <input id="na-password" class="f-input" type="password" bind:value={newAdmin.password} placeholder="At least 8 characters" autocomplete="new-password" required />
+            <p class="row-sub">Give them this password privately. They can change it below after logging in.</p>
+            <div class="form-actions">
+              <button type="submit" class="btn-cta cta">Add admin</button>
+            </div>
+          </form>
+
+          <h2 style="margin-top:32px">Change my password</h2>
+          <form class="admin-form" on:submit|preventDefault={submitChangePassword}>
+            <label class="flabel" for="pw-current">Current password</label>
+            <input id="pw-current" class="f-input" type="password" bind:value={pwForm.current} autocomplete="current-password" required />
+            <label class="flabel" for="pw-next">New password</label>
+            <input id="pw-next" class="f-input" type="password" bind:value={pwForm.next} placeholder="At least 8 characters" autocomplete="new-password" required />
+            <div class="form-actions">
+              <button type="submit" class="btn-cta cta">Change password</button>
+            </div>
+          </form>
         {/if}
       </main>
     </div>

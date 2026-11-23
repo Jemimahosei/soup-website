@@ -40,7 +40,12 @@ export async function adminLogin(username, password) {
     body: JSON.stringify({ username, password }),
   });
   localStorage.setItem("soup_admin_token", data.token);
+  localStorage.setItem("soup_admin_username", data.username || username);
   return data;
+}
+
+export function getUsername() {
+  return localStorage.getItem("soup_admin_username") || "";
 }
 
 export async function adminLogout() {
@@ -56,6 +61,7 @@ export async function adminLogout() {
     }
   }
   localStorage.removeItem("soup_admin_token");
+  localStorage.removeItem("soup_admin_username");
 }
 
 function adminReq(path, method, body) {
@@ -71,6 +77,23 @@ export const adminApi = {
   update: (table, id, body) => adminReq(`/admin/${table}/${id}`, "PUT", body),
   remove: (table, id) => adminReq(`/admin/${table}/${id}`, "DELETE"),
 };
+
+// Who has admin access: individual accounts for each board member.
+export function listAdmins() {
+  return adminReq("/admin/admins", "GET");
+}
+export function addAdmin(username, password) {
+  return adminReq("/admin/admins", "POST", { username, password });
+}
+export function removeAdmin(username) {
+  return adminReq(`/admin/admins/${encodeURIComponent(username)}`, "DELETE");
+}
+export function changeMyPassword(currentPassword, newPassword) {
+  return adminReq("/admin/change-password", "POST", {
+    currentPassword,
+    newPassword,
+  });
+}
 
 export function fmtDate(iso) {
   if (!iso) return "";

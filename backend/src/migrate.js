@@ -1,7 +1,12 @@
 const crypto = require("crypto");
 const { pool } = require("./db");
 
-const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
+// Same scrypt format as server.js ("scrypt:<salt>:<hash>").
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+  return `scrypt:${salt}:${hash}`;
+}
 
 async function main() {
   await pool.query(`
@@ -60,6 +65,12 @@ async function main() {
     ALTER TABLE resources ADD COLUMN IF NOT EXISTS image_url TEXT;
   `);
 
+  // Sessions record which admin signed in (change-password and
+  // remove-admin need it). Safe on existing DBs.
+  await pool.query(`
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS username TEXT;
+  `);
+
   // Seeded admin account (dev/demo only — change via env vars).
   const username = process.env.ADMIN_USERNAME || "admin";
   const password = process.env.ADMIN_PASSWORD || "soup-admin";
@@ -67,7 +78,7 @@ async function main() {
     `INSERT INTO admins (username, password_hash)
      VALUES ($1, $2)
      ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
-    [username, sha256(password)]
+    [username, hashPassword(password)]
   );
 
   console.log("Migrations complete.");
