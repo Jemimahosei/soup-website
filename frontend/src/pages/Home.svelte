@@ -9,10 +9,16 @@
   let loading = true;
 
   // Pinned news belongs in the home page's upcoming section ("Next
-  // hangout") — Jemimah's settled mapping. The API already returns
-  // pinned announcements first; unpinned ones keep showing below.
-  $: pinned = announcements.filter((a) => a.pinned);
-  $: unpinned = announcements.filter((a) => !a.pinned);
+  // hangout") — Jemimah's settled mapping. Within the pinned boards,
+  // the Welcome board always comes first (Jemimah, 2026-11-22).
+  // Unpinned announcements (e.g. the 161 Things recap) do not appear
+  // on the home page at all.
+  $: pinned = announcements
+    .filter((a) => a.pinned)
+    .sort((x, y) => welcomeRank(x) - welcomeRank(y));
+  function welcomeRank(a) {
+    return String(a.title || "").trim().toLowerCase().startsWith("welcome to soup") ? 0 : 1;
+  }
   $: nextEvent = upcoming.length ? upcoming[0] : null;
 
   // "What we do" tiles — static in the mockup, mirroring the club's
@@ -126,17 +132,6 @@
         <a href="#/join-us" class="btn-cta btn-md cta">Get the dates</a>
         <a href="#/past-events" class="btn-ghost btn-md ghost">Look back</a>
       </div>
-    </div>
-  {/if}
-
-  {#if unpinned.length}
-    <div class="news-list">
-      {#each unpinned as a}
-        <article class="news-card">
-          <h3>{a.title}</h3>
-          <p style="white-space: pre-line;">{a.body}</p>
-        </article>
-      {/each}
     </div>
   {/if}
 </section>
