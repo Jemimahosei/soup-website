@@ -38,7 +38,9 @@
   });
 
   // Mockup header nav: Upcoming · Past events · Join (orange CTA).
-  // Home is the logo; Club admin lives in the footer, as in the mockups.
+  // Home is the logo. Club admin was footer-only in the mockups;
+  // Jemimah asked for a more conspicuous entry, so it is also an
+  // outlined button in the header nav (footer link kept).
   const nav = [
     { href: "#/upcoming-events", label: "Upcoming", key: "upcoming-events" },
     { href: "#/past-events", label: "Past events", key: "past-events" },
@@ -75,6 +77,7 @@
           {item.label}
         </a>
       {/each}
+      <a href="#/admin" class="nav-admin" on:click={() => (menuOpen = false)}>Club admin</a>
     </nav>
   </header>
 
