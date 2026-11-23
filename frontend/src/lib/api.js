@@ -87,6 +87,31 @@ export function fmtDate(iso) {
   });
 }
 
+// Redesign addition: the mockup event cards and detail page use the long
+// form ("August 31, 2024") with no weekday. Same date-part parsing as
+// fmtDate so the day never shifts with the viewer's timezone.
+export function fmtDateLong(iso) {
+  if (!iso) return "";
+  const datePart = String(iso).slice(0, 10);
+  const d = new Date(`${datePart}T12:00:00`);
+  return d.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+// Redesign addition: "today" for display purposes (admin Upcoming/Past
+// pill, event-detail back link) must match the backend's split, which is
+// today in America/New_York (see backend/src/server.js todayNY()). The
+// upcoming/past LISTS still come from the server filter — this helper is
+// only for labels, never for deciding which list an event belongs to.
+export function todayNY() {
+  return new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/New_York",
+  });
+}
+
 export function fmtTime(t) {
   if (!t) return "";
   const [h, m] = t.split(":");

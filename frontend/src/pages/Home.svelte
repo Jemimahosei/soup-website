@@ -1,45 +1,43 @@
 <script>
   import { onMount } from "svelte";
-  import { api, fmtDate, imgFallback } from "../lib/api.js";
+  import { api, fmtDateLong } from "../lib/api.js";
+  import Photo from "../lib/Photo.svelte";
 
   let announcements = [];
   let upcoming = [];
   let error = "";
   let loading = true;
 
-  // Photo carousel from the real site (index.html). Photos live in the
-  // club's images/ folder at deploy time; if a file is missing, the slide
-  // falls back to a labelled card instead of a broken image.
-  const slides = [
-    { file: "ctf4.jpg", label: "Capture the Flag" },
-    { file: "ctf6.jpg", label: "Capture the Flag" },
-    { file: "camping1.jpg", label: "Camping" },
-    { file: "snow1.jpg", label: "Snowball Fight" },
-    { file: "leaf-pile6.jpg", label: "The Big Leaf Pile" },
-  ];
-  let slide = 0;
-  let failed = {};
-  function prev() { slide = (slide + slides.length - 1) % slides.length; }
-  function next() { slide = (slide + 1) % slides.length; }
+  // Pinned news belongs in the home page's upcoming section ("Next
+  // hangout") — Jemimah's settled mapping. The API already returns
+  // pinned announcements first; unpinned ones keep showing below.
+  $: pinned = announcements.filter((a) => a.pinned);
+  $: unpinned = announcements.filter((a) => !a.pinned);
+  $: nextEvent = upcoming.length ? upcoming[0] : null;
 
-  const quotes = [
-    {
-      text: "Soup is a great group of people who wanted to explore what it meant to be an adult and still have fun which shaped my experience at Cornell. It is essentially a bunch of friends doing stuff all together and having experiences that are outside the box.",
-      who: "Meghan, Cornell Junior",
-    },
-    {
-      text: "My general experience in outdoor events has been incredibly rewarding. I've had the opportunity to explore beautiful natural landscapes, challenge myself physically, and forge meaningful connections with other members of SOUP!",
-      who: "Sherki, Cornell Freshman",
-    },
-    {
-      text: "I constantly have fun! It is exciting and entertaining. SOUP gave me the chance to hang out with my friends and meet new people. I miss having this team experience.",
-      who: "Tessa, Cornell Alumnus",
-    },
-    {
-      text: "I've had a really great time being involved in the organization. It's a good mix of structured and unstructured fun. I don't feel like there's anyone being the 'parent' or saying no to doing things, within reason. It's a pick-your-own-adventure type of thing.",
-      who: "Sofia, Cornell Junior",
-    },
+  // "What we do" tiles — static in the mockup, mirroring the club's
+  // tradition stories (the full stories live on the Past events page).
+  const tiles = [
+    { file: "ctf6.jpg", title: "24 hour Capture the Flag", blurb: "Every Labor Day weekend in Sugar Hill State Forest." },
+    { file: "leaf-pile3.jpg", title: "The Big Leaf Pile", blurb: "Each October in Danby State Forest." },
+    { file: "snowball-fight12.jpg", title: "Snowball fights", blurb: "Sometimes even in the middle of August." },
+    { file: "camping2.jpg", title: "Camping trips", blurb: "Gourmet food, a big bonfire and gear for everyone." },
+    { file: "fire2.jpg", title: "Burn Night", blurb: "Will it burn? That was the whole question." },
+    { file: "manhunt2.jpg", title: "Campus Manhunt", blurb: "One person hides. Their location drops every ten minutes." },
   ];
+
+  // Quote carousel — wording exactly as in the mockup's screen logic
+  // (shortened forms of the member quotes). Arrows + counter are the
+  // "tap the quote arrows" interaction from the mockup title.
+  const quotes = [
+    { text: "It is essentially a bunch of friends doing stuff all together and having experiences that are outside the box.", who: "Meghan, Cornell junior" },
+    { text: "I've had the opportunity to explore beautiful natural landscapes, challenge myself physically, and forge meaningful connections.", who: "Sherki, Cornell freshman" },
+    { text: "I constantly have fun! SOUP gave me the chance to hang out with my friends and meet new people. I miss having this team experience.", who: "Tessa, Cornell alumnus" },
+    { text: "It's a good mix of structured and unstructured fun. It's a pick your own adventure type of thing.", who: "Sofia, Cornell junior" },
+  ];
+  let qi = 0;
+  function prev() { qi = (qi + quotes.length - 1) % quotes.length; }
+  function next() { qi = (qi + 1) % quotes.length; }
 
   onMount(async () => {
     try {
@@ -56,135 +54,210 @@
 </script>
 
 <section class="hero">
-  <div class="container">
-    <h1>Students for Outdoor Unsupervised Playtime</h1>
-    <p>
-      Welcome to SOUP - Students for Outdoor Unsupervised Playtime! We are a
-      vibrant group of Cornell University students dedicated to making the most
-      of the scenic beauty and open spaces around Ithaca. Our mission is to
-      foster community and active lifestyles through fun, unsupervised outdoor
-      events. Join us for a range of activities from capture the flag and games
-      of sardines to snowball fights and camping trips. Whether you're looking
-      to relive childhood games or just enjoy the great outdoors with fellow
-      students, SOUP is your go-to club for adventure and connection in
-      nature. Let's play outside!
+  <div class="hero-text">
+    <h1>Let's play outside.</h1>
+    <p class="hero-sub">
+      Students for Outdoor Unsupervised Playtime. Cornell's club for capture
+      the flag, leaf piles, snowball fights and camping, with over 400
+      members since 2020.
     </p>
     <div class="hero-ctas">
-      <a class="btn" href="#/join-us">Join Us!</a>
-      <a class="btn btn-ghost" href="#/upcoming-events">Upcoming Events</a>
+      <a href="#/join-us" class="btn-cta cta">Join the group chat</a>
+      <a href="#/upcoming-events" class="btn-ghost ghost">See what is next</a>
     </div>
+  </div>
+  <div class="hero-photo">
+    <Photo src="/images/ctf4.jpg" file="ctf4.jpg" label="Capture the Flag" height={520} radius={20} />
   </div>
 </section>
 
-<div class="carousel" aria-label="Photos from SOUP events">
-  <div class="carousel-inner">
-    <button class="carousel-btn" on:click={prev} aria-label="Previous photo">&lt;</button>
-    <div class="carousel-slide">
-      {#if failed[slide]}
-        <div class="photo-label">
-          {slides[slide].label}
-          <small>Photo: images/{slides[slide].file} (from the club's gallery)</small>
-        </div>
-      {:else}
-        <img
-          src={`/images/${slides[slide].file}`}
-          alt={slides[slide].label}
-          on:error={(e) => { if (!imgFallback(e)) failed = { ...failed, [slide]: true }; }}
-        />
-      {/if}
-    </div>
-    <button class="carousel-btn" on:click={next} aria-label="Next photo">&gt;</button>
+<section class="stats">
+  <div class="stats-inner">
+    <div><div class="stat-num">400+</div><div class="stat-label">members</div></div>
+    <div><div class="stat-num">2020</div><div class="stat-label">founded by four roommates</div></div>
+    <div><div class="stat-num">24</div><div class="stat-label">hours of capture the flag</div></div>
+    <div><div class="stat-num">0</div><div class="stat-label">adults in charge</div></div>
   </div>
-  <div class="carousel-dots">
-    {#each slides as _, i}
-      <button
-        class="dot"
-        class:active={i === slide}
-        on:click={() => (slide = i)}
-        aria-label={`Photo ${i + 1}: ${slides[i].label}`}
-      ></button>
-    {/each}
-  </div>
-</div>
+</section>
 
-<div class="container">
+<section class="wrap next">
+  <h2 class="h-section">Next hangout</h2>
   {#if error}
     <p class="error">{error}</p>
   {/if}
 
-  <section class="section">
-    <h2>History of SOUP</h2>
-    <p style="max-width: 720px;">
-      Founded in 2020 by a dynamic group of Cornell University students, SOUP -
-      Students for Outdoor Unsupervised Playtime has quickly grown into a
-      flourishing community with over 400 members passionate about outdoor
-      activities. With a rich history of organizing both annual and novel events
-      each year, SOUP encourages student engagement by hosting a variety of
-      activities on Cornell's campus and the picturesque surroundings of Ithaca.
-      Members have the unique opportunity to suggest and participate in new
-      events, ensuring a continually evolving and engaging lineup. SOUP's
-      commitment to promoting social bonds and outdoor exploration is evident in
-      its mission to provide exciting, student-led outdoor adventures, promising
-      a lasting legacy of community and fun.
-    </p>
-  </section>
+  {#each pinned as a}
+    <div class="next-card pinned-card">
+      <div class="next-body">
+        <div class="next-title">{a.title}</div>
+        <p style="white-space: pre-line;">{a.body}</p>
+      </div>
+      <span class="pill pill-pin">Pinned</span>
+    </div>
+  {/each}
 
-  <section class="section">
-    <h2>Hear from our members!</h2>
-    <div class="quotes">
-      {#each quotes as q}
-        <div class="card quote">
-          <p>"{q.text}"</p>
-          <span class="who">— {q.who}</span>
+  {#if loading}
+    <div class="next-card"><div class="next-body"><div class="next-title">Loading…</div></div></div>
+  {:else if nextEvent}
+    <div class="next-card">
+      <div class="next-body">
+        <div class="meta-line">
+          {fmtDateLong(nextEvent.event_date)}{nextEvent.location ? `, ${nextEvent.location}` : ""}
         </div>
+        <div class="next-title">{nextEvent.title}</div>
+        <p>{nextEvent.description}</p>
+      </div>
+      <div class="next-actions">
+        <a href={`#/events/${nextEvent.id}`} class="btn-cta btn-md cta">See the event</a>
+        <a href="#/upcoming-events" class="btn-ghost btn-md ghost">All upcoming</a>
+      </div>
+    </div>
+  {:else}
+    <div class="next-card">
+      <div class="next-body">
+        <div class="next-title">Nothing is posted yet.</div>
+        <p>
+          New dates go to the SoupMe group chat first, usually a few days
+          ahead. Camping trips often happen on a weekend with almost no
+          planning.
+        </p>
+      </div>
+      <div class="next-actions">
+        <a href="#/join-us" class="btn-cta btn-md cta">Get the dates</a>
+        <a href="#/past-events" class="btn-ghost btn-md ghost">Look back</a>
+      </div>
+    </div>
+  {/if}
+
+  {#if unpinned.length}
+    <div class="news-list">
+      {#each unpinned as a}
+        <article class="news-card">
+          <h3>{a.title}</h3>
+          <p style="white-space: pre-line;">{a.body}</p>
+        </article>
       {/each}
     </div>
-  </section>
+  {/if}
+</section>
 
-  <section class="section">
-    <h2>Announcements</h2>
-    {#if loading}
-      <p class="section-sub">Loading…</p>
-    {:else if announcements.length === 0}
-      <p class="section-sub">No announcements right now.</p>
-    {:else}
-      <div class="grid">
-        {#each announcements as a}
-          <article class="card">
-            <h3>{a.title}</h3>
-            {#if a.pinned}<span class="tag pinned">Pinned</span>{/if}
-            <p style="white-space: pre-line;">{a.body}</p>
-          </article>
-        {/each}
-      </div>
-    {/if}
-  </section>
+<section class="wrap what">
+  <h2 class="h-section">What we do</h2>
+  <p class="section-sub">
+    Most things start as an idea in the group chat. These are the ones that
+    came back every year.
+  </p>
+  <div class="tile-grid">
+    {#each tiles as t}
+      <a href="#/past-events" class="tile tile-link">
+        <Photo src={`/images/${t.file}`} file={t.file} height={230} radius={16} />
+        <div class="tile-title">{t.title}</div>
+        <div class="tile-blurb">{t.blurb}</div>
+      </a>
+    {/each}
+  </div>
+</section>
 
-  <section class="section">
-    <h2>Coming up</h2>
-    {#if loading}
-      <p class="section-sub">Loading…</p>
-    {:else if upcoming.length === 0}
-      <p class="section-sub">
-        No upcoming events are posted right now. New dates land here and in
-        the
-        <a href="https://web.groupme.com/join_group/76748584/IpJpxdYO">SoupMe GroupMe</a>
-        as soon as they're set — or
-        <a href="#/past-events">look back at past events</a>.
-      </p>
-    {:else}
-      <div class="grid">
-        {#each upcoming.slice(0, 3) as e}
-          <article class="card">
-            <h3><a href={`#/events/${e.id}`}>{e.title}</a></h3>
-            <p class="meta">{fmtDate(e.event_date)}{e.location ? ` · ${e.location}` : ""}</p>
-            <p>{e.description}</p>
-          </article>
-        {/each}
+<section class="quote-band">
+  <div class="quote-inner">
+    <div class="quote-main">
+      <p class="quote-text">&ldquo;{quotes[qi].text}&rdquo;</p>
+      <div class="quote-who">{quotes[qi].who}</div>
+      <div class="quote-nav">
+        <button type="button" on:click={prev} aria-label="Previous quote" class="quote-arrow">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="#12384a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>
+        </button>
+        <button type="button" on:click={next} aria-label="Next quote" class="quote-arrow">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="#12384a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg>
+        </button>
+        <span class="quote-count">{qi + 1} of {quotes.length}</span>
       </div>
-      <p style="margin-top: 1rem;">
-        <a class="btn btn-small" href="#/upcoming-events">All upcoming events</a>
+    </div>
+    <div class="quote-photo">
+      <Photo src="/images/camping1.jpg" file="camping1.jpg" height={360} radius={20} />
+    </div>
+  </div>
+</section>
+
+<section class="wrap pitch">
+  <div class="pitch-card">
+    <div class="pitch-body">
+      <h2>Got an idea? Run it with us.</h2>
+      <p>
+        There is no official leadership, just whoever wants to put on an
+        event. We help with the planning, the gear and the word of mouth.
       </p>
-    {/if}
-  </section>
-</div>
+    </div>
+    <a href="#/join-us" class="pitch-btn">Pitch an event</a>
+  </div>
+</section>
+
+<style>
+  .hero { max-width: 1120px; margin: 0 auto; padding: 24px 24px 56px; display: flex; gap: 48px; align-items: center; flex-wrap: wrap; }
+  .hero-text { flex: 1 1 440px; min-width: 0; }
+  .hero h1 { margin: 0; font-family: var(--display); font-weight: 800; font-size: 88px; line-height: .95; letter-spacing: -.02em; text-wrap: balance; }
+  .hero-sub { margin: 24px 0 0; font-size: 21px; max-width: 30em; }
+  .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 32px; }
+  .hero-photo { flex: 1 1 440px; min-width: 0; }
+
+  .stats { background: var(--ink); color: var(--cream); }
+  .stats-inner { max-width: 1120px; margin: 0 auto; padding: 36px 24px; display: flex; gap: 32px 64px; flex-wrap: wrap; }
+  .stat-num { font-family: var(--display); font-weight: 800; font-size: 48px; line-height: 1; }
+  .stat-label { color: var(--sand); }
+
+  .next { padding-top: 72px; padding-bottom: 24px; }
+  .next-card { background: var(--sand); border-radius: 20px; padding: 36px; display: flex; gap: 32px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 20px; }
+  .next-body { flex: 1 1 380px; min-width: 0; }
+  .next-title { font-family: var(--display); font-weight: 800; font-size: 30px; line-height: 1.15; }
+  .next-body p { margin: 10px 0 0; max-width: 32em; }
+  .next-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+  .pinned-card { align-items: flex-start; }
+  .news-list { display: grid; gap: 16px; margin-top: 24px; }
+  .news-card { background: #fff; border-radius: 16px; padding: 24px 28px; }
+  .news-card h3 { margin: 0 0 6px; font-family: var(--display); font-weight: 800; font-size: 24px; }
+  .news-card p { margin: 0; color: var(--muted); }
+
+  .what { padding-top: 56px; padding-bottom: 24px; }
+  .what .h-section { margin-bottom: 8px; }
+  .tile-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+  .tile-link { text-decoration: none; }
+  .tile-title { font-family: var(--display); font-weight: 800; font-size: 24px; margin-top: 14px; }
+  .tile-blurb { color: var(--muted); }
+
+  .quote-band { background: var(--sky); margin-top: 56px; }
+  .quote-inner { max-width: 1120px; margin: 0 auto; padding: 64px 24px; display: flex; gap: 48px; align-items: center; flex-wrap: wrap; }
+  .quote-main { flex: 1 1 560px; min-width: 0; }
+  .quote-text { margin: 0; font-family: var(--display); font-weight: 600; font-size: 30px; line-height: 1.3; text-wrap: pretty; }
+  .quote-who { margin-top: 20px; font-weight: 600; }
+  .quote-nav { display: flex; gap: 10px; margin-top: 24px; align-items: center; }
+  .quote-arrow { width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--ink); background: transparent; color: var(--ink); display: flex; align-items: center; justify-content: center; }
+  .quote-count { margin-left: 8px; color: var(--muted); }
+  .quote-photo { flex: 0 1 320px; }
+
+  .pitch { padding-top: 72px; padding-bottom: 72px; }
+  .pitch-card { background: var(--ink); color: var(--cream); border-radius: 20px; padding: 44px; display: flex; gap: 32px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .pitch-body { flex: 1 1 400px; min-width: 0; }
+  .pitch-card h2 { margin: 0; font-family: var(--display); font-weight: 800; font-size: 36px; line-height: 1.1; }
+  .pitch-card p { margin: 10px 0 0; color: var(--sand); max-width: 34em; }
+  .pitch-btn { background: var(--sand); color: var(--ink); border-radius: 8px; padding: 0 26px; min-height: 52px; display: inline-flex; align-items: center; font-weight: 600; text-decoration: none; font-size: 18px; }
+
+  @media (max-width: 700px) {
+    .hero { padding: 12px 16px 28px; gap: 24px; }
+    .hero h1 { font-size: 54px; line-height: .98; }
+    .hero-sub { font-size: 18px; }
+    .hero-ctas a { flex: 1 1 100%; }
+    .stats-inner { padding: 24px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; }
+    .stat-num { font-size: 40px; }
+    .next, .what { padding-left: 16px; padding-right: 16px; }
+    .next { padding-top: 32px; }
+    .next-card { padding: 22px; border-radius: 16px; }
+    .next-title { font-size: 24px; }
+    .tile-grid { grid-template-columns: 1fr; }
+    .quote-inner { padding: 36px 16px; }
+    .quote-text { font-size: 24px; }
+    .quote-photo { display: none; }
+    .pitch { padding: 32px 16px 40px; }
+    .pitch-card { padding: 24px; border-radius: 16px; }
+    .pitch-card h2 { font-size: 26px; }
+  }
+</style>
